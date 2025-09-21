@@ -2,83 +2,159 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>LRU Cache Visualizer</title>
+  <title>LRU Cache Visualizer - Advanced Animations</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
-    <h1>LRU Cache Visualizer</h1>
-    <p>Demonstration of <strong>LRU cache</strong> (Node, LRUCache, get, put, insert, delete, m, head/tail) with code highlighting.</p>
+    <h1><i class="fas fa-memory"></i> LRU Cache Visualizer</h1>
+    <p class="subtitle">Interactive demonstration with advanced animations, particle effects, and sound feedback</p>
   </header>
 
-  <main class="grid">
-    <!-- Controls (left) -->
-    <section class="panel controls">
-      <h2>Controls</h2>
-
-      <div class="row">
-        <label>Capacity:
-          <input id="capacityInput" type="number" min="1" value="3" />
-        </label>
-        <button id="setCapacity">Set</button>
+  <div class="main-container">
+    <!-- Controls Panel -->
+    <div class="panel">
+      <h2 class="panel-title"><i class="fas fa-sliders-h"></i> Controls</h2>
+      
+      <div class="controls-section">
+        <h3><i class="fas fa-cog"></i> Configuration</h3>
+        <div class="input-group">
+          <div class="input-field">
+            <label>Cache Capacity</label>
+            <input id="capacityInput" type="number" min="1" value="3" />
+          </div>
+          <button id="setCapacity" class="btn btn-secondary">
+            <i class="fas fa-check"></i> Set
+          </button>
+        </div>
       </div>
 
-      <div class="row">
-        <label>Key: <input id="keyInput" type="text" placeholder="e.g. 1" /></label>
-        <label>Value: <input id="valueInput" type="text" placeholder="e.g. 10" /></label>
+      <div class="controls-section">
+        <h3><i class="fas fa-database"></i> Operations</h3>
+        <div class="input-group">
+          <div class="input-field">
+            <label>Key</label>
+            <input id="keyInput" type="text" placeholder="e.g. 1" />
+          </div>
+          <div class="input-field">
+            <label>Value</label>
+            <input id="valueInput" type="text" placeholder="e.g. 10" />
+          </div>
+        </div>
+        
+        <div class="button-group">
+          <button id="putBtn" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Put
+          </button>
+          <button id="getBtn" class="btn btn-primary">
+            <i class="fas fa-search"></i> Get
+          </button>
+          <button id="resetBtn" class="btn btn-secondary">
+            <i class="fas fa-refresh"></i> Reset
+          </button>
+        </div>
       </div>
 
-      <div class="row buttons">
-        <button id="putBtn">Put</button>
-        <button id="getBtn">Get</button>
-        <button id="resetBtn">Reset</button>
+      <div class="controls-section">
+        <h3><i class="fas fa-play"></i> Execution</h3>
+        <div class="button-group">
+          <button id="stepBtn" class="btn btn-secondary" disabled>
+            <i class="fas fa-step-forward"></i> Step
+          </button>
+          <button id="runBtn" class="btn btn-secondary" disabled>
+            <i class="fas fa-play"></i> Run
+          </button>
+        </div>
+        
+        <div class="speed-control">
+          <label>Animation Speed</label>
+          <input id="speed" type="range" class="speed-slider" min="100" max="2000" step="100" value="600" />
+        </div>
+
+        <div class="sound-controls">
+          <label class="sound-toggle">
+            <input type="checkbox" id="soundToggle" />
+            <i class="fas fa-volume-mute sound-icon" id="soundIcon"></i>
+            <span>Sound Effects</span>
+          </label>
+        </div>
       </div>
 
-      <div class="row buttons">
-        <button id="stepBtn" disabled>Step</button>
-        <button id="runBtn" disabled>Run</button>
+      <div class="controls-section">
+        <h3><i class="fas fa-list"></i> Batch Operations</h3>
+        <div class="input-field">
+          <textarea id="batchInput" rows="4" placeholder="put 1 10, put 2 20, get 1, put 3 30"></textarea>
+        </div>
+        <div class="button-group">
+          <button id="runBatchBtn" class="btn btn-primary">
+            <i class="fas fa-play-circle"></i> Run Batch
+          </button>
+          <button id="clearLogBtn" class="btn btn-secondary">
+            <i class="fas fa-trash"></i> Clear Log
+          </button>
+        </div>
       </div>
 
-      <div class="row">
-        <label>Speed (ms): <input id="speed" type="range" min="100" max="2000" step="100" value="600" /></label>
+      <div class="controls-section">
+        <h3><i class="fas fa-info-circle"></i> Legend</h3>
+        <div class="legend">
+          <div class="legend-item hit">
+            <i class="fas fa-check-circle"></i> Hit
+          </div>
+          <div class="legend-item miss">
+            <i class="fas fa-times-circle"></i> Miss
+          </div>
+          <div class="legend-item evict">
+            <i class="fas fa-exclamation-triangle"></i> Evict
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Visualization Panel -->
+    <div class="panel">
+      <h2 class="panel-title"><i class="fas fa-eye"></i> Advanced Cache Visualization</h2>
+      
+      <div class="cache-container">
+        <h3>Cache State (MRU → LRU)</h3>
+        <div id="cacheVisual" class="cache-visual">
+          <div class="empty-state">
+            <i class="fas fa-database"></i>
+            <p>Cache is empty</p>
+          </div>
+        </div>
       </div>
 
-      <hr />
-
-      <h3>Batch</h3>
-      <textarea id="batchInput" rows="4" placeholder="Example: put 1 10, put 2 20, get 1, put 3 30"></textarea>
-      <div class="row">
-        <button id="runBatchBtn">Run Batch</button>
-        <button id="clearLogBtn">Clear Log</button>
+      <div class="map-container">
+        <h3><i class="fas fa-sitemap"></i> Hash Map (Key → Node)</h3>
+        <div id="mapView" class="map-visual">
+          <div class="empty-state">
+            <i class="fas fa-map"></i>
+            <p>No mappings</p>
+          </div>
+        </div>
       </div>
 
-      <hr />
-      <h3>Legend</h3>
-      <div class="legend">
-        <span class="legend-item hit">Hit</span>
-        <span class="legend-item miss">Miss</span>
-        <span class="legend-item evict">Eviction</span>
+      <div class="log-container">
+        <h3><i class="fas fa-terminal"></i> Execution Log</h3>
+        <div id="logView"></div>
       </div>
-    </section>
+    </div>
 
-    <!-- Visualization (center) -->
-    <section class="panel visual">
-      <h2>Cache (MRU → LRU)</h2>
-      <div id="cacheVisual" class="cache-visual"></div>
-
-      <h3>Map (key → Node)</h3>
-      <div id="mapView" class="map-view"></div>
-
-      <h3>Log</h3>
-      <div id="logView" class="log-view"></div>
-    </section>
-
-    <!-- Code pane (right) -->
-    <aside class="panel codepane">
-      <h2>Code (Java-like)</h2>
-      <pre id="codePane" class="code"><code>
-<span data-line="ln1">public class Node {</span>
+    <!-- Code Panel -->
+    <div class="panel">
+      <div class="code-container">
+        <div class="code-header">
+          <div class="code-dots">
+            <div class="dot red"></div>
+            <div class="dot yellow"></div>
+            <div class="dot green"></div>
+          </div>
+          <div class="code-title">LRUCache.java</div>
+        </div>
+        <pre id="codePane" class="code"><code><span data-line="ln1">public class Node {</span>
 <span data-line="ln2">    int key;</span>
 <span data-line="ln3">    int value;</span>
 <span data-line="ln4">    Node prev;</span>
@@ -115,9 +191,9 @@
 <span data-line="ln32">        if (m.containsKey(key)) {</span>
 <span data-line="ln33">            Node node = m.get(key);</span>
 <span data-line="ln34">            node.value = value;</span>
-<span data-line="ln35">            delete(node);</span>
-<span data-line="ln36">            insert(node);</span>
-<span data-line="ln37">            return;</span>
+<span data-line="ln35">        delete(node);</span>
+<span data-line="ln36">        insert(node);</span>
+<span data-line="ln37">        return;</span>
 <span data-line="ln38">        }</span>
 <span data-line="ln39">        if (m.size() == capacity) {</span>
 <span data-line="ln40">            Node toRemove = tail.prev;</span>
@@ -140,15 +216,27 @@
 <span data-line="ln55">        node.prev.next = node.next;</span>
 <span data-line="ln56">        node.next.prev = node.prev;</span>
 <span data-line="ln57">    }</span>
-<span data-line="ln58">}</span>
-      </code></pre>
-    </aside>
-  </main>
+<span data-line="ln58">}</span></code></pre>
+      </div>
+    </div>
+  </div>
 
-  <footer>
-    <small>Built for LRU Cache visualization — copy into VS Code and open locally.</small>
-  </footer>
-
+  <script>
+    // Sound toggle functionality
+    document.addEventListener('DOMContentLoaded', () => {
+      const soundToggle = document.getElementById('soundToggle');
+      const soundIcon = document.getElementById('soundIcon');
+      
+      soundToggle.addEventListener('change', () => {
+        const enabled = soundManager.toggle();
+        soundIcon.className = enabled ? 'fas fa-volume-up sound-icon' : 'fas fa-volume-mute sound-icon';
+        
+        if (enabled) {
+          soundManager.playSound('hit'); // Test sound
+        }
+      });
+    });
+  </script>
   <script src="app.js"></script>
 </body>
 </html>

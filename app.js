@@ -1,7 +1,108 @@
 /***********************
- * LRU Visualizer Logic
- * Matches the Java-like code in the code pane.
+ * Advanced Animated LRU Visualizer Logic
+ * Enhanced with node movements, ghost nodes, particle effects, and sound
  ***********************/
+
+/* ---------- Sound Effects ---------- */
+class SoundManager {
+  constructor() {
+    this.enabled = false;
+    this.sounds = {};
+    this.initSounds();
+  }
+
+  initSounds() {
+    // Create audio contexts and oscillators for different sounds
+    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Sound patterns
+    this.soundPatterns = {
+      hit: { frequency: 800, duration: 0.2, type: 'sine' },
+      miss: { frequency: 300, duration: 0.3, type: 'sawtooth' },
+      evict: { frequency: 200, duration: 0.5, type: 'square' },
+      insert: { frequency: 600, duration: 0.3, type: 'triangle' },
+      move: { frequency: 1000, duration: 0.15, type: 'sine' }
+    };
+  }
+
+  playSound(type) {
+    if (!this.enabled || !this.audioContext) return;
+    
+    const pattern = this.soundPatterns[type];
+    if (!pattern) return;
+
+    try {
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
+      
+      oscillator.frequency.setValueAtTime(pattern.frequency, this.audioContext.currentTime);
+      oscillator.type = pattern.type;
+      
+      gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + pattern.duration);
+      
+      oscillator.start(this.audioContext.currentTime);
+      oscillator.stop(this.audioContext.currentTime + pattern.duration);
+    } catch (e) {
+      console.log('Sound playback failed:', e);
+    }
+  }
+
+  toggle() {
+    this.enabled = !this.enabled;
+    if (this.enabled && this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+    return this.enabled;
+  }
+}
+
+/* ---------- Particle Effects ---------- */
+class ParticleSystem {
+  createEvictionParticles(element) {
+    const rect = element.getBoundingClientRect();
+    const containerRect = element.closest('.cache-container').getBoundingClientRect();
+    
+    const particleContainer = document.createElement('div');
+    particleContainer.className = 'particle-container';
+    particleContainer.style.position = 'absolute';
+    particleContainer.style.left = (rect.left - containerRect.left) + 'px';
+    particleContainer.style.top = (rect.top - containerRect.top) + 'px';
+    particleContainer.style.width = rect.width + 'px';
+    particleContainer.style.height = rect.height + 'px';
+
+    // Create 6 particles
+    for (let i = 0; i < 6; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      
+      // Random direction and distance
+      const angle = (Math.PI * 2 * i) / 6 + Math.random() * 0.5;
+      const distance = 80 + Math.random() * 40;
+      const dx = Math.cos(angle) * distance;
+      const dy = Math.sin(angle) * distance;
+      
+      particle.style.setProperty('--dx', dx + 'px');
+      particle.style.setProperty('--dy', dy + 'px');
+      particle.style.left = '50%';
+      particle.style.top = '50%';
+      
+      particleContainer.appendChild(particle);
+    }
+
+    element.closest('.cache-container').appendChild(particleContainer);
+
+    // Remove particles after animation
+    setTimeout(() => {
+      if (particleContainer.parentNode) {
+        particleContainer.parentNode.removeChild(particleContainer);
+      }
+    }, 1500);
+  }
+}
 
 /* ---------- Helper: sleep ---------- */
 function sleep(ms){ return new Promise(resolve=>setTimeout(resolve, ms)); }
@@ -16,14 +117,7 @@ class Node {
   }
 }
 
-/* ---------- LRUCache class (JS) ----------
-   Methods and fields mirror the Java-like code pane:
-   - head, tail (dummy nodes)
-   - m: Map<key,Node>
-   - capacity
-   - get(key), put(key,value), insert(node), delete(node)
-   Each public operation returns a 'trace' array describing steps.
--------------------------------------*/
+/* ---------- LRUCache class (JS) ---------- */
 class LRUCache {
   constructor(capacity){
     this.capacity = capacity;
@@ -63,11 +157,11 @@ class LRUCache {
     const node = this.m.get(key);
 
     // delete step
-    trace.push({ line: 'ln27', text: `delete(node ${key}) — detach from list`, key });
+    trace.push({ line: 'ln27', text: `delete(node ${key}) — detach from list`, key, action: 'delete' });
     this.delete(node);
 
     // insert step
-    trace.push({ line: 'ln28', text: `insert(node ${key}) — insert at head (MRU)`, key });
+    trace.push({ line: 'ln28', text: `insert(node ${key}) — insert at head (MRU)`, key, action: 'move-to-front' });
     this.insert(node);
 
     trace.push({ line: 'ln29', text: `return node.value (${node.value})` });
@@ -86,10 +180,10 @@ class LRUCache {
       trace.push({ line: 'ln34', text: `node.value = ${value}` , key});
       node.value = value;
 
-      trace.push({ line: 'ln35', text: `delete(node ${key})` , key});
+      trace.push({ line: 'ln35', text: `delete(node ${key})` , key, action: 'delete'});
       this.delete(node);
 
-      trace.push({ line: 'ln36', text: `insert(node ${key})` , key});
+      trace.push({ line: 'ln36', text: `insert(node ${key})` , key, action: 'move-to-front'});
       this.insert(node);
 
       trace.push({ line: 'ln37', text: `return` });
@@ -101,7 +195,7 @@ class LRUCache {
 
     if (this.m.size === this.capacity) {
       const toRemove = this.tail.prev;
-      trace.push({ line: 'ln40', text: `Capacity full — will remove tail.prev (LRU) key=${toRemove.key}`, type: 'evict', evicted: toRemove.key });
+      trace.push({ line: 'ln40', text: `Capacity full — will remove tail.prev (LRU) key=${toRemove.key}`, type: 'evict', evicted: toRemove.key, action: 'evict' });
       // actual remove
       this.delete(toRemove);
       this.m.delete(toRemove.key);
@@ -109,9 +203,9 @@ class LRUCache {
     }
 
     const node = new Node(key, value);
-    trace.push({ line: 'ln44', text: `Create Node(${key}, ${value})` });
+    trace.push({ line: 'ln44', text: `Create Node(${key}, ${value})`, action: 'create' });
 
-    trace.push({ line: 'ln45', text: `insert(node ${key})` });
+    trace.push({ line: 'ln45', text: `insert(node ${key})`, key, action: 'insert' });
     this.insert(node);
 
     trace.push({ line: 'ln46', text: `m.put(${key}, node)` });
@@ -162,58 +256,126 @@ let traceIndex = 0;
 let autoPlaying = false;
 let lastActiveLine = null;
 
+// Initialize sound manager and particle system
+const soundManager = new SoundManager();
+const particleSystem = new ParticleSystem();
+
 /* ---------- UI helpers ---------- */
 function setLog(msg, type){
   const div = document.createElement('div');
   div.className = 'log-entry';
   div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-  if (type === 'hit') div.style.color = '#065f46'; // green
-  if (type === 'miss') div.style.color = '#9b1c1c'; // red
-  if (type === 'evict') div.style.color = '#92400e'; // orange
+  if (type === 'hit') div.classList.add('hit');
+  if (type === 'miss') div.classList.add('miss');
+  if (type === 'evict') div.classList.add('evict');
   logView.prepend(div);
 }
 
-function clearLog(){ logView.innerHTML = ''; }
+function clearLog(){ 
+  logView.innerHTML = ''; 
+}
+
+function createGhostNode(originalElement, key, value) {
+  const ghost = document.createElement('div');
+  ghost.className = 'cache-node ghost';
+  ghost.dataset.key = key;
+  
+  const kv = document.createElement('div');
+  kv.className = 'kv';
+  kv.textContent = `${key} : ${value}`;
+  
+  const pos = document.createElement('div');
+  pos.className = 'pos';
+  pos.textContent = 'GHOST';
+  
+  ghost.appendChild(kv);
+  ghost.appendChild(pos);
+  
+  // Position ghost at same location as original
+  const rect = originalElement.getBoundingClientRect();
+  const containerRect = originalElement.parentElement.getBoundingClientRect();
+  
+  ghost.style.position = 'absolute';
+  ghost.style.left = (rect.left - containerRect.left) + 'px';
+  ghost.style.top = (rect.top - containerRect.top) + 'px';
+  ghost.style.zIndex = '1';
+  
+  cacheVisual.appendChild(ghost);
+  
+  // Remove ghost after animation
+  setTimeout(() => {
+    if (ghost.parentNode) {
+      ghost.parentNode.removeChild(ghost);
+    }
+  }, 2000);
+  
+  return ghost;
+}
 
 function renderCache(){
+  // Store previous state for ghost creation
+  const prevElements = Array.from(cacheVisual.querySelectorAll('.cache-node:not(.ghost)'));
+  const prevState = prevElements.map(el => ({
+    key: el.dataset.key,
+    value: el.querySelector('.kv').textContent.split(' : ')[1],
+    element: el
+  }));
+  
   cacheVisual.innerHTML = '';
   const arr = cache.snapshotOrdered(); // head -> tail (MRU -> LRU)
-  arr.forEach((item, idx) => {
-    const box = document.createElement('div');
-    box.className = 'cache-node';
-    box.dataset.key = item.key;
-    const kv = document.createElement('div');
-    kv.className = 'kv';
-    kv.textContent = `${item.key} : ${item.value}`;
-    const pos = document.createElement('div');
-    pos.className = 'pos';
-    pos.textContent = (idx === 0 ? 'HEAD (MRU)' : (idx === arr.length - 1 ? 'TAIL (LRU)' : `pos ${idx+1}`));
-    box.appendChild(kv);
-    box.appendChild(pos);
-    cacheVisual.appendChild(box);
-  });
-
-  // if empty, show placeholder
+  
   if (arr.length === 0){
-    const p = document.createElement('div');
-    p.style.color = '#6b7280';
-    p.textContent = '(cache empty)';
-    cacheVisual.appendChild(p);
+    const emptyState = document.createElement('div');
+    emptyState.className = 'empty-state';
+    emptyState.innerHTML = `
+      <i class="fas fa-database"></i>
+      <p>Cache is empty</p>
+    `;
+    cacheVisual.appendChild(emptyState);
+  } else {
+    arr.forEach((item, idx) => {
+      const box = document.createElement('div');
+      box.className = 'cache-node';
+      box.dataset.key = item.key;
+      
+      const kv = document.createElement('div');
+      kv.className = 'kv';
+      kv.textContent = `${item.key} : ${item.value}`;
+      
+      const pos = document.createElement('div');
+      pos.className = 'pos';
+      pos.textContent = (idx === 0 ? 'MRU' : (idx === arr.length - 1 ? 'LRU' : `pos ${idx+1}`));
+      
+      box.appendChild(kv);
+      box.appendChild(pos);
+      cacheVisual.appendChild(box);
+
+      // Add arrow between nodes (except for last node)
+      if (idx < arr.length - 1) {
+        const arrow = document.createElement('div');
+        arrow.className = 'arrow';
+        arrow.innerHTML = '<i class="fas fa-arrow-right"></i>';
+        cacheVisual.appendChild(arrow);
+      }
+    });
   }
 
   // Map view
   mapView.innerHTML = '';
   const keys = cache.snapshotMap();
   if (keys.length === 0){
-    const p = document.createElement('div');
-    p.style.color = '#6b7280';
-    p.textContent = '(map empty)';
-    mapView.appendChild(p);
+    const emptyState = document.createElement('div');
+    emptyState.className = 'empty-state';
+    emptyState.innerHTML = `
+      <i class="fas fa-map"></i>
+      <p>No mappings</p>
+    `;
+    mapView.appendChild(emptyState);
   } else {
     keys.forEach(k => {
       const e = document.createElement('div');
       e.className = 'map-entry';
-      e.textContent = `${k} → Node`;
+      e.innerHTML = `<strong>${k}</strong> → Node`;
       mapView.appendChild(e);
     });
   }
@@ -237,28 +399,87 @@ function highlightLine(lineId){
   }
 }
 
-/* Apply a single trace step (visual + log + highlight). */
+/* Apply a single trace step with advanced animations */
 async function applyStep(step){
   if (!step) return;
+  
   if (step.line) highlightLine(step.line);
-  if (step.key !== undefined) {
-    // highlight the node element if present (present after state changes)
-    // apply class by key
+  
+  // Handle different animation actions
+  if (step.action && step.key !== undefined) {
     const nodeEl = document.querySelector(`.cache-node[data-key="${step.key}"]`);
-    if (nodeEl){
-      if (step.type === 'hit') {
-        nodeEl.classList.add('hit');
-        setTimeout(()=> nodeEl.classList.remove('hit'), 600);
-      } else if (step.type === 'miss') {
-        // for miss: flash nothing in cache (no element), mark map area
-        // briefly add a miss entry visually by pushing a log
-      } else if (step.type === 'evict') {
-        // evicted key likely not in DOM (removed), so show a short eviction entry
-        setLog(`Eviction: key ${step.evicted}`, 'evict');
-      }
-    } else {
-      // No DOM node found; maybe miss or eviction — log accordingly
+    
+    switch(step.action) {
+      case 'hit':
+        if (nodeEl) {
+          nodeEl.classList.add('hit');
+          soundManager.playSound('hit');
+          setTimeout(()=> nodeEl.classList.remove('hit'), 800);
+        }
+        break;
+        
+      case 'move-to-front':
+        if (nodeEl) {
+          // Create ghost at current position
+          createGhostNode(nodeEl, step.key, nodeEl.querySelector('.kv').textContent.split(' : ')[1]);
+          
+          nodeEl.classList.add('moving-to-front');
+          soundManager.playSound('move');
+          setTimeout(()=> nodeEl.classList.remove('moving-to-front'), 1000);
+          
+          // Animate arrows
+          const arrows = document.querySelectorAll('.arrow');
+          arrows.forEach(arrow => {
+            arrow.classList.add('active');
+            setTimeout(() => arrow.classList.remove('active'), 1000);
+          });
+        }
+        break;
+        
+      case 'evict':
+        const evictEl = document.querySelector(`.cache-node[data-key="${step.evicted}"]`);
+        if (evictEl) {
+          evictEl.classList.add('evicting');
+          particleSystem.createEvictionParticles(evictEl);
+          soundManager.playSound('evict');
+        }
+        break;
+        
+      case 'insert':
+        // Will be handled after render when new element appears
+        setTimeout(() => {
+          const newEl = document.querySelector(`.cache-node[data-key="${step.key}"]`);
+          if (newEl) {
+            newEl.classList.add('entering');
+            soundManager.playSound('insert');
+            setTimeout(()=> newEl.classList.remove('entering'), 800);
+          }
+        }, 50);
+        break;
     }
+  }
+  
+  // Handle hit/miss/evict visual feedback
+  if (step.key !== undefined) {
+    const nodeEl = document.querySelector(`.cache-node[data-key="${step.key}"]`);
+    if (nodeEl && step.type === 'hit') {
+      nodeEl.classList.add('hit');
+      setTimeout(()=> nodeEl.classList.remove('hit'), 1000);
+    }
+    
+    // Highlight map entry
+    const mapEntries = document.querySelectorAll('.map-entry');
+    mapEntries.forEach(entry => {
+      if (entry.textContent.includes(step.key)) {
+        entry.classList.add('highlight');
+        setTimeout(() => entry.classList.remove('highlight'), 1000);
+      }
+    });
+  }
+
+  // Play sounds for different operations
+  if (step.type === 'miss') {
+    soundManager.playSound('miss');
   }
 
   // Append textual log for this step
@@ -285,16 +506,7 @@ async function playTrace(trace){
   }
 }
 
-/* Prepare and run (auto) */
-async function runAuto(trace){
-  runBtn.disabled = true;
-  stepBtn.disabled = true;
-  await playTrace(trace);
-  runBtn.disabled = false;
-  stepBtn.disabled = false;
-}
-
-/* ---------- Handlers ---------- */
+/* ---------- Event Handlers ---------- */
 setCapacityBtn.addEventListener('click', () => {
   const cap = Number(capacityInput.value) || 1;
   cache = new LRUCache(cap);
@@ -302,38 +514,46 @@ setCapacityBtn.addEventListener('click', () => {
   traceIndex = 0;
   renderCache();
   clearLog();
-  setLog(`Capacity set to ${cap}`);
+  setLog(`✅ Cache capacity set to ${cap}`);
 });
 
 putBtn.addEventListener('click', async () => {
   const key = keyInput.value.trim();
   const val = valueInput.value.trim();
-  if (key === '') { alert('Enter key'); return; }
-  // run put
-  const { trace } = cache.put(key, val);
+  if (key === '') { 
+    alert('⚠️ Please enter a key'); 
+    return; 
+  }
+  const { trace } = cache.put(key, val || key);
   currentTrace = trace;
   traceIndex = 0;
   stepBtn.disabled = false;
   runBtn.disabled = false;
-  // auto-play single op if preferred; default user uses Step or Run
+  setLog(`🚀 PUT operation ready - ${trace.length} steps`);
 });
 
 getBtn.addEventListener('click', async () => {
   const key = keyInput.value.trim();
-  if (key === '') { alert('Enter key'); return; }
+  if (key === '') { 
+    alert('⚠️ Please enter a key'); 
+    return; 
+  }
   const { value, trace } = cache.get(key);
   currentTrace = trace;
   traceIndex = 0;
   stepBtn.disabled = false;
   runBtn.disabled = false;
-  // optionally show returned value in log
-  if (value !== -1) setLog(`get(${key}) returned ${value}`, 'hit');
-  else setLog(`get(${key}) returned -1`, 'miss');
+  
+  if (value !== -1) {
+    setLog(`🎯 GET operation ready - will return ${value}`, 'hit');
+  } else {
+    setLog(`❌ GET operation ready - key not found`, 'miss');
+  }
 });
 
 stepBtn.addEventListener('click', async () => {
   if (!currentTrace || traceIndex >= currentTrace.length) {
-    setLog('No more steps to execute for current operation.');
+    setLog('✋ No more steps to execute for current operation.');
     stepBtn.disabled = true;
     runBtn.disabled = true;
     return;
@@ -343,6 +563,7 @@ stepBtn.addEventListener('click', async () => {
   if (traceIndex >= currentTrace.length){
     stepBtn.disabled = true;
     runBtn.disabled = true;
+    setLog('✅ Operation completed!');
   }
 });
 
@@ -350,10 +571,12 @@ runBtn.addEventListener('click', async () => {
   if (!currentTrace || currentTrace.length === 0) return;
   runBtn.disabled = true;
   stepBtn.disabled = true;
+  setLog('⚡ Running remaining steps...');
   await playTrace(currentTrace.slice(traceIndex));
   traceIndex = currentTrace.length;
   runBtn.disabled = false;
   stepBtn.disabled = true;
+  setLog('✅ Operation completed!');
 });
 
 resetBtn.addEventListener('click', () => {
@@ -362,38 +585,69 @@ resetBtn.addEventListener('click', () => {
   traceIndex = 0;
   renderCache();
   clearLog();
-  setLog('Cache reset');
+  setLog('🔄 Cache has been reset');
 });
 
 runBatchBtn.addEventListener('click', async () => {
   const raw = batchInput.value.trim();
-  if (!raw) { alert('Paste batch commands'); return; }
-  // parse by comma or newline
-  const tokens = raw.split(/[,\\n]+/).map(s=>s.trim()).filter(Boolean);
+  if (!raw) { 
+    alert('⚠️ Please enter batch commands'); 
+    return; 
+  }
+  
+  runBatchBtn.disabled = true;
+  setLog('🔄 Starting batch execution...');
+  
+  const tokens = raw.split(/[,\n]+/).map(s=>s.trim()).filter(Boolean);
+  let operationCount = 0;
+  
   for (const t of tokens){
-    // each token like: put 1 10  OR get 2
     const parts = t.split(/\s+/);
     const cmd = parts[0].toLowerCase();
-    if (cmd === 'put' && parts.length >= 3){
+    
+    if (cmd === 'put' && parts.length >= 2){
       const key = parts[1];
-      const val = parts.slice(2).join(' ');
+      const val = parts.length >= 3 ? parts.slice(2).join(' ') : key;
+      setLog(`📝 Executing: put ${key} ${val}`);
       const { trace } = cache.put(key, val);
       await playTrace(trace);
+      operationCount++;
     } else if (cmd === 'get' && parts.length >= 2){
       const key = parts[1];
+      setLog(`🔍 Executing: get ${key}`);
       const { value, trace } = cache.get(key);
       await playTrace(trace);
-      if (value !== -1) setLog(`get(${key}) returned ${value}`, 'hit');
-      else setLog(`get(${key}) returned -1`, 'miss');
+      if (value !== -1) {
+        setLog(`✅ get(${key}) returned ${value}`, 'hit');
+      } else {
+        setLog(`❌ get(${key}) returned -1`, 'miss');
+      }
+      operationCount++;
     } else {
-      setLog(`Unknown/invalid command: "${t}"`);
+      setLog(`⚠️ Unknown/invalid command: "${t}"`);
     }
   }
-  // batch finished
+  
+  setLog(`🎉 Batch execution completed! ${operationCount} operations processed.`);
+  runBatchBtn.disabled = false;
 });
 
-clearLogBtn.addEventListener('click', () => clearLog());
+clearLogBtn.addEventListener('click', () => {
+  clearLog();
+  setLog('📋 Log cleared');
+});
+
+// Auto-clear inputs after operations
+function clearInputs() {
+  keyInput.value = '';
+  valueInput.value = '';
+}
+
+putBtn.addEventListener('click', () => setTimeout(clearInputs, 500));
+getBtn.addEventListener('click', () => setTimeout(clearInputs, 500));
 
 /* Initial render */
 renderCache();
-setLog('Ready — set capacity and start using Put/Get.');
+setLog('🚀 LRU Cache Visualizer ready! Set capacity and start with Put/Get operations.');
+setLog('💡 Try: put 1 100, put 2 200, get 1, put 3 300 to see eviction in action.');
+setLog('🔊 Click the sound icon to enable audio feedback!');
