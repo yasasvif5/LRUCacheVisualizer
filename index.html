@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>LRU Cache Visualizer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>LRU Cache Visualizer</h1>
+    <p>Demonstration of <strong>LRU cache</strong> (Node, LRUCache, get, put, insert, delete, m, head/tail) with code highlighting.</p>
+  </header>
+
+  <main class="grid">
+    <!-- Controls (left) -->
+    <section class="panel controls">
+      <h2>Controls</h2>
+
+      <div class="row">
+        <label>Capacity:
+          <input id="capacityInput" type="number" min="1" value="3" />
+        </label>
+        <button id="setCapacity">Set</button>
+      </div>
+
+      <div class="row">
+        <label>Key: <input id="keyInput" type="text" placeholder="e.g. 1" /></label>
+        <label>Value: <input id="valueInput" type="text" placeholder="e.g. 10" /></label>
+      </div>
+
+      <div class="row buttons">
+        <button id="putBtn">Put</button>
+        <button id="getBtn">Get</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+
+      <div class="row buttons">
+        <button id="stepBtn" disabled>Step</button>
+        <button id="runBtn" disabled>Run</button>
+      </div>
+
+      <div class="row">
+        <label>Speed (ms): <input id="speed" type="range" min="100" max="2000" step="100" value="600" /></label>
+      </div>
+
+      <hr />
+
+      <h3>Batch</h3>
+      <textarea id="batchInput" rows="4" placeholder="Example: put 1 10, put 2 20, get 1, put 3 30"></textarea>
+      <div class="row">
+        <button id="runBatchBtn">Run Batch</button>
+        <button id="clearLogBtn">Clear Log</button>
+      </div>
+
+      <hr />
+      <h3>Legend</h3>
+      <div class="legend">
+        <span class="legend-item hit">Hit</span>
+        <span class="legend-item miss">Miss</span>
+        <span class="legend-item evict">Eviction</span>
+      </div>
+    </section>
+
+    <!-- Visualization (center) -->
+    <section class="panel visual">
+      <h2>Cache (MRU → LRU)</h2>
+      <div id="cacheVisual" class="cache-visual"></div>
+
+      <h3>Map (key → Node)</h3>
+      <div id="mapView" class="map-view"></div>
+
+      <h3>Log</h3>
+      <div id="logView" class="log-view"></div>
+    </section>
+
+    <!-- Code pane (right) -->
+    <aside class="panel codepane">
+      <h2>Code (Java-like)</h2>
+      <pre id="codePane" class="code"><code>
+<span data-line="ln1">public class Node {</span>
+<span data-line="ln2">    int key;</span>
+<span data-line="ln3">    int value;</span>
+<span data-line="ln4">    Node prev;</span>
+<span data-line="ln5">    Node next;</span>
+<span data-line="ln6">    public Node(int key, int value) {</span>
+<span data-line="ln7">        this.key = key;</span>
+<span data-line="ln8">        this.value = value;</span>
+<span data-line="ln9">    }</span>
+<span data-line="ln10">}</span>
+
+<span data-line="ln11">public class LRUCache {</span>
+<span data-line="ln12">    private Node head;</span>
+<span data-line="ln13">    private Node tail;</span>
+<span data-line="ln14">    private Map&lt;Integer, Node&gt; m;</span>
+<span data-line="ln15">    private int capacity;</span>
+<span data-line="ln16">    public LRUCache(int capacity) {</span>
+<span data-line="ln17">        this.capacity = capacity;</span>
+<span data-line="ln18">        m = new HashMap&lt;&gt;();</span>
+<span data-line="ln19">        head = new Node(0,0); // dummy</span>
+<span data-line="ln20">        tail = new Node(0,0); // dummy</span>
+<span data-line="ln21">        head.next = tail;</span>
+<span data-line="ln22">        tail.prev = head;</span>
+<span data-line="ln23">    }</span>
+
+<span data-line="ln24">    public int get(int key) {</span>
+<span data-line="ln25">        if (!m.containsKey(key)) return -1;</span>
+<span data-line="ln26">        Node node = m.get(key);</span>
+<span data-line="ln27">        delete(node);</span>
+<span data-line="ln28">        insert(node);</span>
+<span data-line="ln29">        return node.value;</span>
+<span data-line="ln30">    }</span>
+
+<span data-line="ln31">    public void put(int key, int value) {</span>
+<span data-line="ln32">        if (m.containsKey(key)) {</span>
+<span data-line="ln33">            Node node = m.get(key);</span>
+<span data-line="ln34">            node.value = value;</span>
+<span data-line="ln35">            delete(node);</span>
+<span data-line="ln36">            insert(node);</span>
+<span data-line="ln37">            return;</span>
+<span data-line="ln38">        }</span>
+<span data-line="ln39">        if (m.size() == capacity) {</span>
+<span data-line="ln40">            Node toRemove = tail.prev;</span>
+<span data-line="ln41">            delete(toRemove);</span>
+<span data-line="ln42">            m.remove(toRemove.key);</span>
+<span data-line="ln43">        }</span>
+<span data-line="ln44">        Node node = new Node(key, value);</span>
+<span data-line="ln45">        insert(node);</span>
+<span data-line="ln46">        m.put(key, node);</span>
+<span data-line="ln47">    }</span>
+
+<span data-line="ln48">    private void insert(Node node) {</span>
+<span data-line="ln49">        node.next = head.next;</span>
+<span data-line="ln50">        node.prev = head;</span>
+<span data-line="ln51">        head.next.prev = node;</span>
+<span data-line="ln52">        head.next = node;</span>
+<span data-line="ln53">    }</span>
+
+<span data-line="ln54">    private void delete(Node node) {</span>
+<span data-line="ln55">        node.prev.next = node.next;</span>
+<span data-line="ln56">        node.next.prev = node.prev;</span>
+<span data-line="ln57">    }</span>
+<span data-line="ln58">}</span>
+      </code></pre>
+    </aside>
+  </main>
+
+  <footer>
+    <small>Built for LRU Cache visualization — copy into VS Code and open locally.</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
